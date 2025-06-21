@@ -37,8 +37,9 @@ Route::middleware('auth')->group(function () {
     | Modul VPN (L2TP, PPTP, SSTP)
     |--------------------------------------------------------------------------
     */
-    Route::resource('vpn', VpnAccountController::class);
     Route::get('vpn/logs', [VpnAccountController::class, 'logs'])->name('vpn.logs');
+    Route::resource('vpn', VpnAccountController::class);
+    
 
     /*
     |--------------------------------------------------------------------------

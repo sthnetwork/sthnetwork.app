@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\VpnAccount;
 use App\Models\Mikrotik;
 use App\Models\VpnLog;
+use App\Models\VpnIpPool;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use RouterOS\Client;
@@ -42,41 +43,35 @@ class VpnAccountController extends Controller
             'vpn_type'    => 'required|in:L2TP,PPTP,SSTP',
         ]);
 
+        // Ambil IP dari pool
+        $ipPool = VpnIpPool::where('used', false)->first();
+        if (!$ipPool) {
+            return back()->with('error', 'IP pool habis. Silakan tambahkan IP baru.');
+        }
+
+        $assignedIp = $ipPool->ip_address;
         $username = $request->username . '@sthnetwork';
         $script   = $this->generateScript($username, $request->password, $request->vpn_type);
-        $ip       = null;
 
         try {
             $client = new Client([
-                'host' => env('VPN_SERVER', '103.195.65.76'),
-                'user' => env('VPN_USER', 'billingsth'),
-                'pass' => env('VPN_PASS', 'billingsth'),
+                'host' => env('VPN_SERVER'),
+                'user' => env('VPN_USER'),
+                'pass' => env('VPN_PASS'),
                 'port' => (int) env('VPN_PORT', 8282),
             ]);
 
-            $exist = $client->query(
-                (new Query('/ppp/secret/print'))->where('name', $username)
+            // Tambahkan ke Mikrotik CHR
+            $client->query((new Query('/ppp/secret/add'))
+                ->equal('name', $username)
+                ->equal('password', $request->password)
+                ->equal('service', strtolower($request->vpn_type))
+                ->equal('profile', 'default-encryption')
+                ->equal('remote-address', $assignedIp)
             )->read();
-
-            if (empty($exist)) {
-                $client->query((new Query('/ppp/secret/add'))
-                    ->equal('name', $username)
-                    ->equal('password', $request->password)
-                    ->equal('service', strtolower($request->vpn_type))
-                    ->equal('profile', 'default-encryption')
-                )->read();
-            }
-
-            sleep(1);
-            $active = $client->query(
-                (new Query('/ppp/active/print'))->where('name', $username)
-            )->read();
-
-            $ip = $active[0]['address'] ?? null;
-
         } catch (\Exception $e) {
             \Log::error('Gagal koneksi CHR: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Gagal koneksi ke CHR: ' . $e->getMessage());
+            return back()->with('error', 'Gagal koneksi ke CHR: ' . $e->getMessage());
         }
 
         $vpn = VpnAccount::create([
@@ -85,14 +80,17 @@ class VpnAccountController extends Controller
             'password'    => Crypt::encryptString($request->password),
             'vpn_type'    => $request->vpn_type,
             'script'      => $script,
-            'ip_address'  => $ip,
-            'status'      => $ip ? 'connected' : 'active',
+            'ip_address'  => $assignedIp,
+            'status'      => 'active',
         ]);
+
+        $ipPool->used = true;
+        $ipPool->save();
 
         VpnLog::create([
             'vpn_account_id' => $vpn->id,
             'action' => 'created',
-            'ip_address' => $ip,
+            'ip_address' => $assignedIp,
         ]);
 
         return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil dibuat.');
@@ -121,7 +119,7 @@ class VpnAccountController extends Controller
             'ip_address' => $vpn->ip_address,
         ]);
 
-        // === Auto Disconnect PPP jika status nonaktif ===
+        // Auto Disconnect jika dinonaktifkan
         if ($vpn->status === 'inactive') {
             try {
                 $client = new Client([
@@ -137,9 +135,7 @@ class VpnAccountController extends Controller
 
                 if (!empty($activeSessions)) {
                     $activeId = $activeSessions[0]['.id'];
-                    $disconnectQuery = new Query('/ppp/active/remove');
-                    $disconnectQuery->equal('.id', $activeId);
-                    $client->query($disconnectQuery)->read();
+                    $client->query((new Query('/ppp/active/remove'))->equal('.id', $activeId))->read();
 
                     VpnLog::create([
                         'vpn_account_id' => $vpn->id,
@@ -165,11 +161,14 @@ class VpnAccountController extends Controller
             'ip_address' => $vpn->ip_address,
         ]);
 
+        // Kembalikan IP ke pool
+        VpnIpPool::where('ip_address', $vpn->ip_address)->update(['used' => false]);
+
         try {
             $client = new Client([
-                'host' => env('VPN_SERVER', '103.195.65.76'),
-                'user' => env('VPN_USER', 'billingsth'),
-                'pass' => env('VPN_PASS', 'billingsth'),
+                'host' => env('VPN_SERVER'),
+                'user' => env('VPN_USER'),
+                'pass' => env('VPN_PASS'),
                 'port' => (int) env('VPN_PORT', 8282),
             ]);
 
@@ -184,7 +183,7 @@ class VpnAccountController extends Controller
             }
         } catch (\Exception $e) {
             \Log::error('Gagal hapus akun di CHR: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Gagal hapus akun di CHR: ' . $e->getMessage());
+            return back()->with('error', 'Gagal hapus akun di CHR: ' . $e->getMessage());
         }
 
         $vpn->delete();
@@ -199,10 +198,11 @@ class VpnAccountController extends Controller
 
         return "/interface {$type}-client add connect-to={$server} user={$username} password={$password} name={$username} disabled=no";
     }
-}
-public function logs()
-{
-    $logs = \App\Models\VpnLog::with('vpnAccount')->latest()->get();
-    return view('pages.vpn.logs', compact('logs'));
+
+    public function logs()
+    {
+        $logs = VpnLog::with('vpnAccount')->latest()->get();
+        return view('pages.vpn.logs', compact('logs'));
+    }
 }
 

@@ -6,7 +6,7 @@
 @section('content')
 <div class="card mt-8">
     <div class="card-body px-6 pt-8" x-data="formPelanggan()">
-        <form action="{{ route('customers.store') }}" method="POST" @submit.prevent="submitForm">
+        <form action="{{ route('customers.store') }}" method="POST" @submit.prevent="submitForm" x-ref="customerForm">
             @csrf
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -146,7 +146,7 @@ function formPelanggan() {
                 alert('Harap isi semua kolom wajib dan pastikan NIK 16 digit.');
                 return;
             }
-            $el('form').submit();
+            this.$refs.customerForm.submit();
         }
     }
 }

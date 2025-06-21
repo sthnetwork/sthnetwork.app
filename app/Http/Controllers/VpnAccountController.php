@@ -97,27 +97,45 @@ class VpnAccountController extends Controller
         return view('pages.vpn.edit', compact('vpn'));
     }
 
-    public function update(Request $request, $id)
-    {
-        $vpn = VpnAccount::findOrFail($id);
+    public function update(Request $request, VpnAccount $vpn)
+{
+    $request->validate([
+        'password' => 'required|string',
+        'status'   => 'required|in:active,inactive',
+    ]);
 
-        $request->validate([
-            'vpn_type' => 'required|in:L2TP,PPTP,SSTP',
-            'password' => 'nullable|string',
-            'status'   => 'required|in:active,inactive',
-        ]);
+    $vpn->password = $request->password;
+    $vpn->status   = $request->status;
+    $vpn->save();
 
-        if ($request->filled('password')) {
-            $vpn->password = $request->password;
-            $vpn->script   = $this->generateScript($vpn->username, $request->password, $request->vpn_type);
+    // === Auto Disconnect PPP jika status nonaktif ===
+    if ($vpn->status === 'inactive') {
+        try {
+            $client = new \RouterOS\Client([
+                'host' => env('VPN_SERVER'),
+                'user' => env('VPN_USER'),
+                'pass' => env('VPN_PASS'),
+                'port' => (int) env('VPN_PORT', 8282),
+            ]);
+
+            $query = new \RouterOS\Query('/ppp/active/print');
+            $query->where('name', $vpn->username);
+            $activeSessions = $client->query($query)->read();
+
+            if (!empty($activeSessions)) {
+                $activeId = $activeSessions[0]['.id'];
+                $disconnectQuery = new \RouterOS\Query('/ppp/active/remove');
+                $disconnectQuery->equal('.id', $activeId);
+                $client->query($disconnectQuery)->read();
+            }
+        } catch (\Exception $e) {
+            \Log::error('Gagal disconnect VPN user ' . $vpn->username . ': ' . $e->getMessage());
         }
-
-        $vpn->vpn_type = $request->vpn_type;
-        $vpn->status   = $request->status;
-        $vpn->save();
-
-        return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil diperbarui.');
     }
+
+    return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil diperbarui');
+}
+
 
     public function destroy($id)
     {

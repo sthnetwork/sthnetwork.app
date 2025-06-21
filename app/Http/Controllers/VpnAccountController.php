@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\VpnAccount;
 use App\Models\Mikrotik;
+use App\Models\VpnLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use RouterOS\Client;
@@ -53,7 +54,6 @@ class VpnAccountController extends Controller
                 'port' => (int) env('VPN_PORT', 8282),
             ]);
 
-            // Tambahkan user jika belum ada di CHR
             $exist = $client->query(
                 (new Query('/ppp/secret/print'))->where('name', $username)
             )->read();
@@ -79,7 +79,7 @@ class VpnAccountController extends Controller
             return redirect()->back()->with('error', 'Gagal koneksi ke CHR: ' . $e->getMessage());
         }
 
-        VpnAccount::create([
+        $vpn = VpnAccount::create([
             'mikrotik_id' => $request->mikrotik_id,
             'username'    => $username,
             'password'    => Crypt::encryptString($request->password),
@@ -87,6 +87,12 @@ class VpnAccountController extends Controller
             'script'      => $script,
             'ip_address'  => $ip,
             'status'      => $ip ? 'connected' : 'active',
+        ]);
+
+        VpnLog::create([
+            'vpn_account_id' => $vpn->id,
+            'action' => 'created',
+            'ip_address' => $ip,
         ]);
 
         return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil dibuat.');
@@ -109,6 +115,12 @@ class VpnAccountController extends Controller
         $vpn->status   = $request->status;
         $vpn->save();
 
+        VpnLog::create([
+            'vpn_account_id' => $vpn->id,
+            'action' => 'updated',
+            'ip_address' => $vpn->ip_address,
+        ]);
+
         // === Auto Disconnect PPP jika status nonaktif ===
         if ($vpn->status === 'inactive') {
             try {
@@ -128,6 +140,12 @@ class VpnAccountController extends Controller
                     $disconnectQuery = new Query('/ppp/active/remove');
                     $disconnectQuery->equal('.id', $activeId);
                     $client->query($disconnectQuery)->read();
+
+                    VpnLog::create([
+                        'vpn_account_id' => $vpn->id,
+                        'action' => 'disconnected',
+                        'ip_address' => $vpn->ip_address,
+                    ]);
                 }
             } catch (\Exception $e) {
                 \Log::error('Gagal disconnect VPN user ' . $vpn->username . ': ' . $e->getMessage());
@@ -140,6 +158,12 @@ class VpnAccountController extends Controller
     public function destroy($id)
     {
         $vpn = VpnAccount::findOrFail($id);
+
+        VpnLog::create([
+            'vpn_account_id' => $vpn->id,
+            'action' => 'deleted',
+            'ip_address' => $vpn->ip_address,
+        ]);
 
         try {
             $client = new Client([
@@ -175,5 +199,10 @@ class VpnAccountController extends Controller
 
         return "/interface {$type}-client add connect-to={$server} user={$username} password={$password} name={$username} disabled=no";
     }
+}
+public function logs()
+{
+    $logs = \App\Models\VpnLog::with('vpnAccount')->latest()->get();
+    return view('pages.vpn.logs', compact('logs'));
 }
 

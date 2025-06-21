@@ -7,9 +7,14 @@
 <div class="card p-6">
     <div class="flex justify-between items-center mb-6">
         <h4 class="text-lg font-semibold text-slate-700 dark:text-white">Daftar Akun VPN</h4>
-        <a href="{{ route('vpn.create') }}" class="btn bg-[#ff8000] text-white">
-            + Tambah Akun VPN
-        </a>
+        <div class="flex gap-2">
+            <a href="{{ route('vpn.logs') }}" class="btn bg-slate-100 text-slate-800">
+                🪵 Lihat Log
+            </a>
+            <a href="{{ route('vpn.create') }}" class="btn bg-[#ff8000] text-white">
+                + Tambah Akun VPN
+            </a>
+        </div>
     </div>
 
     @if(session('success'))

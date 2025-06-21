@@ -38,6 +38,7 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::resource('vpn', VpnAccountController::class);
+    Route::get('vpn/logs', [VpnAccountController::class, 'logs'])->name('vpn.logs');
 
     /*
     |--------------------------------------------------------------------------

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\VpnAccount;
 use App\Models\Mikrotik;
 use App\Models\VpnLog;
-use App\Models\VpnIpPool;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use RouterOS\Client;
@@ -43,14 +42,9 @@ class VpnAccountController extends Controller
             'vpn_type'    => 'required|in:L2TP,PPTP,SSTP',
         ]);
 
-        $ipPool = VpnIpPool::where('used', false)->first();
-        if (!$ipPool) {
-            return back()->with('error', 'IP pool habis. Tambahkan IP di menu IP Pool.');
-        }
-
-        $assignedIp = $ipPool->ip_address;
         $username = $request->username . '@sthnetwork';
         $script   = $this->generateScript($username, $request->password, $request->vpn_type);
+        $ip       = null;
 
         try {
             $client = new Client([
@@ -64,9 +58,16 @@ class VpnAccountController extends Controller
                 ->equal('name', $username)
                 ->equal('password', $request->password)
                 ->equal('service', strtolower($request->vpn_type))
-                ->equal('profile', 'default-encryption')
-                ->equal('remote-address', $assignedIp)
+                ->equal('profile', 'default-encryption') // sudah menggunakan pool Mikrotik
             )->read();
+
+            sleep(1);
+            $active = $client->query(
+                (new Query('/ppp/active/print'))->where('name', $username)
+            )->read();
+
+            $ip = $active[0]['address'] ?? null;
+
         } catch (\Exception $e) {
             \Log::error('Gagal koneksi CHR: ' . $e->getMessage());
             return back()->with('error', 'Gagal koneksi ke CHR: ' . $e->getMessage());
@@ -78,17 +79,14 @@ class VpnAccountController extends Controller
             'password'    => Crypt::encryptString($request->password),
             'vpn_type'    => $request->vpn_type,
             'script'      => $script,
-            'ip_address'  => $assignedIp,
-            'status'      => 'active',
+            'ip_address'  => $ip,
+            'status'      => $ip ? 'connected' : 'active',
         ]);
-
-        $ipPool->used = true;
-        $ipPool->save();
 
         VpnLog::create([
             'vpn_account_id' => $vpn->id,
             'action' => 'created',
-            'ip_address' => $assignedIp,
+            'ip_address' => $ip,
         ]);
 
         return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil dibuat.');
@@ -157,8 +155,6 @@ class VpnAccountController extends Controller
             'action' => 'deleted',
             'ip_address' => $vpn->ip_address,
         ]);
-
-        VpnIpPool::where('ip_address', $vpn->ip_address)->update(['used' => false]);
 
         try {
             $client = new Client([

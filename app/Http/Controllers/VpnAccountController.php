@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\VpnAccount;
 use App\Models\Mikrotik;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use RouterOS\Client;
 use RouterOS\Query;
 
@@ -81,7 +82,7 @@ class VpnAccountController extends Controller
         VpnAccount::create([
             'mikrotik_id' => $request->mikrotik_id,
             'username'    => $username,
-            'password'    => $request->password,
+            'password'    => Crypt::encryptString($request->password),
             'vpn_type'    => $request->vpn_type,
             'script'      => $script,
             'ip_address'  => $ip,
@@ -98,44 +99,43 @@ class VpnAccountController extends Controller
     }
 
     public function update(Request $request, VpnAccount $vpn)
-{
-    $request->validate([
-        'password' => 'required|string',
-        'status'   => 'required|in:active,inactive',
-    ]);
+    {
+        $request->validate([
+            'password' => 'required|string',
+            'status'   => 'required|in:active,inactive',
+        ]);
 
-    $vpn->password = $request->password;
-    $vpn->status   = $request->status;
-    $vpn->save();
+        $vpn->password = Crypt::encryptString($request->password);
+        $vpn->status   = $request->status;
+        $vpn->save();
 
-    // === Auto Disconnect PPP jika status nonaktif ===
-    if ($vpn->status === 'inactive') {
-        try {
-            $client = new \RouterOS\Client([
-                'host' => env('VPN_SERVER'),
-                'user' => env('VPN_USER'),
-                'pass' => env('VPN_PASS'),
-                'port' => (int) env('VPN_PORT', 8282),
-            ]);
+        // === Auto Disconnect PPP jika status nonaktif ===
+        if ($vpn->status === 'inactive') {
+            try {
+                $client = new Client([
+                    'host' => env('VPN_SERVER'),
+                    'user' => env('VPN_USER'),
+                    'pass' => env('VPN_PASS'),
+                    'port' => (int) env('VPN_PORT', 8282),
+                ]);
 
-            $query = new \RouterOS\Query('/ppp/active/print');
-            $query->where('name', $vpn->username);
-            $activeSessions = $client->query($query)->read();
+                $query = new Query('/ppp/active/print');
+                $query->where('name', $vpn->username);
+                $activeSessions = $client->query($query)->read();
 
-            if (!empty($activeSessions)) {
-                $activeId = $activeSessions[0]['.id'];
-                $disconnectQuery = new \RouterOS\Query('/ppp/active/remove');
-                $disconnectQuery->equal('.id', $activeId);
-                $client->query($disconnectQuery)->read();
+                if (!empty($activeSessions)) {
+                    $activeId = $activeSessions[0]['.id'];
+                    $disconnectQuery = new Query('/ppp/active/remove');
+                    $disconnectQuery->equal('.id', $activeId);
+                    $client->query($disconnectQuery)->read();
+                }
+            } catch (\Exception $e) {
+                \Log::error('Gagal disconnect VPN user ' . $vpn->username . ': ' . $e->getMessage());
             }
-        } catch (\Exception $e) {
-            \Log::error('Gagal disconnect VPN user ' . $vpn->username . ': ' . $e->getMessage());
         }
+
+        return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil diperbarui');
     }
-
-    return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil diperbarui');
-}
-
 
     public function destroy($id)
     {

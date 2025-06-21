@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\VpnAccount;
+use App\Models\Mikrotik;
+use Illuminate\Http\Request;
+use RouterOS\Client;
+use RouterOS\Query;
+
+class VpnAccountController extends Controller
+{
+    public function index()
+    {
+        $vpnAccounts = VpnAccount::with('mikrotik')->latest()->get();
+        return view('pages.vpn.index', compact('vpnAccounts'));
+    }
+
+    public function create()
+    {
+        $mikrotiks = Mikrotik::all();
+        return view('pages.vpn.create', compact('mikrotiks'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'mikrotik_id' => 'nullable|exists:mikrotiks,id',
+            'username'    => [
+                'required',
+                'string',
+                function ($attribute, $value, $fail) {
+                    $full = $value . '@sthnetwork';
+                    if (VpnAccount::where('username', $full)->exists()) {
+                        $fail('Username sudah digunakan.');
+                    }
+                },
+            ],
+            'password'    => 'required|string',
+            'vpn_type'    => 'required|in:L2TP,PPTP,SSTP',
+        ]);
+
+        $username = $request->username . '@sthnetwork';
+        $script   = $this->generateScript($username, $request->password, $request->vpn_type);
+        $ip       = null;
+
+        try {
+            $client = new Client([
+                'host' => env('VPN_SERVER', '103.195.65.76'),
+                'user' => env('VPN_USER', 'billingsth'),
+                'pass' => env('VPN_PASS', 'billingsth'),
+                'port' => (int) env('VPN_PORT', 8282),
+            ]);
+
+            // Tambahkan user jika belum ada di CHR
+            $exist = $client->query(
+                (new Query('/ppp/secret/print'))->where('name', $username)
+            )->read();
+
+            if (empty($exist)) {
+                $client->query((new Query('/ppp/secret/add'))
+                    ->equal('name', $username)
+                    ->equal('password', $request->password)
+                    ->equal('service', strtolower($request->vpn_type))
+                    ->equal('profile', 'default-encryption')
+                )->read();
+            }
+
+            sleep(1);
+            $active = $client->query(
+                (new Query('/ppp/active/print'))->where('name', $username)
+            )->read();
+
+            $ip = $active[0]['address'] ?? null;
+
+        } catch (\Exception $e) {
+            \Log::error('Gagal koneksi CHR: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal koneksi ke CHR: ' . $e->getMessage());
+        }
+
+        VpnAccount::create([
+            'mikrotik_id' => $request->mikrotik_id,
+            'username'    => $username,
+            'password'    => $request->password,
+            'vpn_type'    => $request->vpn_type,
+            'script'      => $script,
+            'ip_address'  => $ip,
+            'status'      => $ip ? 'connected' : 'active',
+        ]);
+
+        return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil dibuat.');
+    }
+
+    public function edit($id)
+    {
+        $vpn = VpnAccount::findOrFail($id);
+        return view('pages.vpn.edit', compact('vpn'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $vpn = VpnAccount::findOrFail($id);
+
+        $request->validate([
+            'vpn_type' => 'required|in:L2TP,PPTP,SSTP',
+            'password' => 'nullable|string',
+            'status'   => 'required|in:active,inactive',
+        ]);
+
+        if ($request->filled('password')) {
+            $vpn->password = $request->password;
+            $vpn->script   = $this->generateScript($vpn->username, $request->password, $request->vpn_type);
+        }
+
+        $vpn->vpn_type = $request->vpn_type;
+        $vpn->status   = $request->status;
+        $vpn->save();
+
+        return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil diperbarui.');
+    }
+
+    public function destroy($id)
+    {
+        $vpn = VpnAccount::findOrFail($id);
+
+        try {
+            $client = new Client([
+                'host' => env('VPN_SERVER', '103.195.65.76'),
+                'user' => env('VPN_USER', 'billingsth'),
+                'pass' => env('VPN_PASS', 'billingsth'),
+                'port' => (int) env('VPN_PORT', 8282),
+            ]);
+
+            $secrets = $client->query(
+                (new Query('/ppp/secret/print'))->where('name', $vpn->username)
+            )->read();
+
+            if (!empty($secrets) && isset($secrets[0]['.id'])) {
+                $client->query(
+                    (new Query('/ppp/secret/remove'))->equal('.id', $secrets[0]['.id'])
+                )->read();
+            }
+        } catch (\Exception $e) {
+            \Log::error('Gagal hapus akun di CHR: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal hapus akun di CHR: ' . $e->getMessage());
+        }
+
+        $vpn->delete();
+
+        return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil dihapus.');
+    }
+
+    protected function generateScript($username, $password, $type)
+    {
+        $server = env('VPN_SERVER', 'vpn.sthnetwork.com');
+        $type   = strtolower($type);
+
+        return "/interface {$type}-client add connect-to={$server} user={$username} password={$password} name={$username} disabled=no";
+    }
+}
+

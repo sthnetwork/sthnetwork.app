@@ -54,19 +54,18 @@ class VpnAccountController extends Controller
                 'port' => (int) env('VPN_PORT', 8282),
             ]);
 
+            $freeIp = $this->getFreeIpFromPool($client);
+
             $client->query((new Query('/ppp/secret/add'))
                 ->equal('name', $username)
                 ->equal('password', $request->password)
                 ->equal('service', strtolower($request->vpn_type))
-                ->equal('profile', 'default-encryption') // sudah menggunakan pool Mikrotik
+                ->equal('profile', 'default-encryption')
+                ->equal('remote-address', $freeIp)
+                ->equal('local-address', '10.123.123.1')
             )->read();
 
-            sleep(1);
-            $active = $client->query(
-                (new Query('/ppp/active/print'))->where('name', $username)
-            )->read();
-
-            $ip = $active[0]['address'] ?? null;
+            $ip = $freeIp;
 
         } catch (\Exception $e) {
             \Log::error('Gagal koneksi CHR: ' . $e->getMessage());
@@ -80,7 +79,7 @@ class VpnAccountController extends Controller
             'vpn_type'    => $request->vpn_type,
             'script'      => $script,
             'ip_address'  => $ip,
-            'status'      => $ip ? 'connected' : 'active',
+            'status'      => 'active',
         ]);
 
         VpnLog::create([
@@ -183,6 +182,12 @@ class VpnAccountController extends Controller
         return redirect()->route('vpn.index')->with('success', 'Akun VPN berhasil dihapus.');
     }
 
+    public function logs()
+    {
+        $logs = VpnLog::with('vpnAccount')->latest()->get();
+        return view('pages.vpn.logs', compact('logs'));
+    }
+
     protected function generateScript($username, $password, $type)
     {
         $server = env('VPN_SERVER', 'vpn.sthnetwork.com');
@@ -191,10 +196,22 @@ class VpnAccountController extends Controller
         return "/interface {$type}-client add connect-to={$server} user={$username} password={$password} name={$username} disabled=no";
     }
 
-    public function logs()
+    protected function getFreeIpFromPool($client)
     {
-        $logs = VpnLog::with('vpnAccount')->latest()->get();
-        return view('pages.vpn.logs', compact('logs'));
+        $usedIps = collect($client->query((new Query('/ppp/active/print')))->read())
+            ->pluck('address')
+            ->filter()
+            ->toArray();
+
+        $range = collect(range(2, 254))->map(fn($i) => "10.123.123.$i");
+
+        foreach ($range as $ip) {
+            if (!in_array($ip, $usedIps)) {
+                return $ip;
+            }
+        }
+
+        abort(500, 'IP Pool Mikrotik habis!');
     }
 }
 

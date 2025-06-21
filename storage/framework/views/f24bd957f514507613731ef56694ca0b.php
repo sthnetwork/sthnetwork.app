@@ -19,12 +19,12 @@
     </button>
 
     <!-- Menu List -->
-    <div class="srcollbar" data-simplebar>
+    <div class="scrollbar" data-simplebar>
         <ul class="menu" data-fc-type="accordion">
 
             
             <li class="menu-title">Menu</li>
-            <li class="menu-item">
+            <li class="menu-item <?php echo e(request()->is('/') || request()->is('index') ? 'active' : ''); ?>">
                 <a href="<?php echo e(route('any', 'index')); ?>" class="menu-link">
                     <span class="menu-icon"><i class="mgc_home_3_line"></i></span>
                     <span class="menu-text">Dashboard</span>
@@ -32,29 +32,37 @@
             </li>
 
             
-            <li class="menu-title">Network</li>
-            <li class="menu-item">
-                <a href="<?php echo e(route('mikrotik.index')); ?>" class="menu-link">
-                    <span class="menu-icon"><i class="mgc_server_line"></i></span>
-                    <span class="menu-text">Mikrotik</span>
-                </a>
-            </li>
-            <li class="menu-item">
-                <a href="<?php echo e(route('vpn.index')); ?>" class="menu-link">
-                    <span class="menu-icon"><i class="mgc_shield_keyhole_line"></i></span>
-                    <span class="menu-text">VPN</span>
-                </a>
-            </li>
+            <li class="menu-title">Aplikasi</li>
             
+            <li class="menu-item has-submenu <?php echo e((request()->is('mikrotik*') || request()->is('vpn*')) ? 'open' : ''); ?>">
+                <a href="javascript:void(0)" data-fc-type="collapse" class="menu-link">
+                    <span class="menu-icon"><i class="mgc_router_modem_line"></i></span>
+                    <span class="menu-text"> Network </span>
+                    <span class="menu-arrow"></span>
+                </a>
 
-            
-            <li class="menu-title">Keuangan</li>
-            <li class="menu-item">
+                <ul class="menu-submenu">
+                    <li class="menu-item <?php echo e(request()->is('mikrotik*') ? 'active' : ''); ?>">
+                        <a href="<?php echo e(route('mikrotik.index')); ?>" class="menu-link">
+                            <span class="menu-icon"><i class="mgc_server_line"></i></span>
+                            <span class="menu-text">Mikrotik</span>
+                        </a>
+                    </li>
+                    <li class="menu-item <?php echo e(request()->is('vpn*') ? 'active' : ''); ?>">
+                        <a href="<?php echo e(route('vpn.index')); ?>" class="menu-link">
+                            <span class="menu-icon"><i class="mgc_shield_line"></i></span>
+                            <span class="menu-text">VPN</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li class="menu-item <?php echo e(request()->is('customers*') ? 'active' : ''); ?>">
                 <a href="<?php echo e(route('customers.index')); ?>" class="menu-link">
                     <span class="menu-icon"><i class="mgc_user_2_line"></i></span>
                     <span class="menu-text">Pelanggan</span>
                 </a>
             </li>
+            
             
 
         </ul>

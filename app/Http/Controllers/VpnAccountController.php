@@ -43,10 +43,9 @@ class VpnAccountController extends Controller
             'vpn_type'    => 'required|in:L2TP,PPTP,SSTP',
         ]);
 
-        // Ambil IP dari pool
         $ipPool = VpnIpPool::where('used', false)->first();
         if (!$ipPool) {
-            return back()->with('error', 'IP pool habis. Silakan tambahkan IP baru.');
+            return back()->with('error', 'IP pool habis. Tambahkan IP di menu IP Pool.');
         }
 
         $assignedIp = $ipPool->ip_address;
@@ -61,7 +60,6 @@ class VpnAccountController extends Controller
                 'port' => (int) env('VPN_PORT', 8282),
             ]);
 
-            // Tambahkan ke Mikrotik CHR
             $client->query((new Query('/ppp/secret/add'))
                 ->equal('name', $username)
                 ->equal('password', $request->password)
@@ -119,7 +117,6 @@ class VpnAccountController extends Controller
             'ip_address' => $vpn->ip_address,
         ]);
 
-        // Auto Disconnect jika dinonaktifkan
         if ($vpn->status === 'inactive') {
             try {
                 $client = new Client([
@@ -161,7 +158,6 @@ class VpnAccountController extends Controller
             'ip_address' => $vpn->ip_address,
         ]);
 
-        // Kembalikan IP ke pool
         VpnIpPool::where('ip_address', $vpn->ip_address)->update(['used' => false]);
 
         try {

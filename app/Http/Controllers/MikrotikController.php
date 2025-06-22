@@ -7,15 +7,37 @@ use App\Models\Mikrotik;
 use App\Models\VpnAccount;
 use RouterOS\Client;
 use RouterOS\Query;
+use Exception;
 
 class MikrotikController extends Controller
 {
     /**
-     * Tampilkan semua router Mikrotik.
+     * Tampilkan semua router Mikrotik dengan status koneksi.
      */
     public function index()
     {
-        $routers = Mikrotik::orderBy('cluster')->get();
+        $mikrotiks = Mikrotik::orderBy('cluster')->get()->map(function ($router) {
+            try {
+                // Inisialisasi klien RouterOS
+                $client = new Client([
+                    'host'    => $router->ip_address,
+                    'user'    => $router->username,
+                    'pass'    => $router->password,
+                    'port'    => (int)$router->port_api ?? 8728, // Gunakan port_api dari database
+                    'timeout' => 2, // Timeout koneksi dalam detik
+                ]);
+                $client->connect();
+                $router->status_koneksi = true;
+            } catch (Exception $e) {
+                // Jika koneksi gagal, set status ke false
+                $router->status_koneksi = false;
+            }
+            return $router;
+        });
+
+        // Ganti nama variabel agar konsisten dengan view
+        $routers = $mikrotiks;
+
         return view('pages.mikrotik.index', compact('routers'));
     }
 

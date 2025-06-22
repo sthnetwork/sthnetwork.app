@@ -1,99 +1,131 @@
 @extends('layouts.vertical', [
     'title' => 'Router Mikrotik',
-    'sub_title' => 'Daftar Router Multi-Site ISP'
+    'sub_title' => 'Kelola router Mikrotik antar cluster.'
 ])
 
+@push('styles')
+<link href="{{ asset('libs/sweetalert2/sweetalert2.min.css') }}" rel="stylesheet" />
+@endpush
+
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6 px-2 md:px-0">
+
     {{-- Header --}}
-    <div class="flex flex-wrap items-center justify-between gap-4">
-        <div>
-            <h2 class="flex items-center gap-2 text-3xl font-extrabold tracking-tight text-slate-800 dark:text-white">
-                <i class="mgc_router_line text-[#ff8000] text-2xl"></i>
-                Router Mikrotik
-            </h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Kelola router Mikrotik per area (cluster) yang terhubung ke sistem.
-            </p>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex gap-2">
+            <i class="mgc_router_line text-[#ff8000] text-2xl mt-1.5"></i>
+            <div>
+                <h2 class="text-3xl font-bold text-slate-800 dark:text-white">Router Mikrotik</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Kelola router Mikrotik per area (cluster) yang terhubung ke sistem.
+                </p>
+            </div>
         </div>
+
         <a href="{{ route('mikrotik.create') }}"
-           class="btn bg-[#ff8000] hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-md shadow-md hover:shadow-lg transition-all">
+           class="btn bg-[#ff8000] hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-md shadow-sm hover:shadow transition">
             <i class="mgc_add_line mr-1"></i> Tambah Router
         </a>
     </div>
 
     {{-- Table --}}
-    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-md p-6">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-xl overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="table w-full text-sm whitespace-nowrap border-separate border-spacing-y-2">
-                <thead class="uppercase text-xs tracking-wide text-slate-500 dark:text-slate-400">
+            <table class="min-w-full text-sm text-left text-gray-700 dark:text-gray-200">
+                <thead class="bg-gray-50 dark:bg-gray-700 uppercase text-[11px] font-semibold">
                     <tr>
-                        <th class="font-semibold px-4 py-3 text-left">Nama Router</th>
-                        <th class="font-semibold px-4 py-3 text-left">IP Address:Port</th>
-                        <th class="font-semibold px-4 py-3 text-left">Cluster</th>
-                        <th class="font-semibold px-4 py-3 text-left">Status DB</th>
-                        <th class="font-semibold px-4 py-3 text-left">Koneksi API</th>
-                        <th class="font-semibold px-4 py-3 text-center">Aksi</th>
+                        <th class="px-6 py-3 text-center min-w-[120px]">Aksi</th>
+                        <th class="px-6 py-3">Nama Router</th>
+                        <th class="px-6 py-3">IP Address:Port</th>
+                        <th class="px-6 py-3">Cluster</th>
+                        <th class="px-6 py-3 text-center">Koneksi API</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @forelse ($routers as $router)
-                        <tr class="bg-white dark:bg-slate-900 hover:bg-orange-50 dark:hover:bg-slate-700 transition-all">
-                            <td class="px-4 py-2 font-medium text-slate-800 dark:text-white rounded-l-lg">
-                                {{ $router->router_name }}
-                            </td>
-                            <td class="px-4 py-2 text-slate-600 dark:text-slate-300 font-mono">
-                                {{ $router->ip_address }}:{{ $router->port_api }}
-                            </td>
-                            <td class="px-4 py-2">{{ $router->cluster ?? '-' }}</td>
-                            <td class="px-4 py-2">
-                                @if($router->status === 'active')
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400">
-                                        <i class="mgc_check_circle_line text-sm"></i> Aktif
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">
-                                        <i class="mgc_close_circle_line text-sm"></i> Nonaktif
-                                    </span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-2">
-                                @if($router->status_koneksi)
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-400">
-                                        <i class="mgc_wifi_line text-sm"></i> Terhubung
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400">
-                                        <i class="mgc_nowifi_line text-sm"></i> Gagal
-                                    </span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-2 text-center rounded-r-lg">
-                                <div class="flex justify-center gap-2">
-                                    <a href="{{ route('mikrotik.edit', $router->id) }}" class="btn btn-sm bg-primary/20 text-primary hover:bg-primary hover:text-white">
-                                        <i class="mgc_edit_line"></i>
-                                    </a>
-                                    <button type="button" class="btn btn-sm bg-danger/20 text-danger hover:bg-danger hover:text-white"
-                                        onclick="confirmDelete('delete-form-{{ $router->id }}')">
-                                        <i class="mgc_delete_line"></i>
-                                    </button>
-                                    <form id="delete-form-{{ $router->id }}" action="{{ route('mikrotik.destroy', $router->id) }}" method="POST" class="hidden">
-                                        @csrf
-                                        @method('DELETE')
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    @forelse($routers as $router)
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <td class="px-6 py-4 text-center">
+                            <div x-data="{
+                                open: false,
+                                top: 0,
+                                left: 0,
+                                toggle($el) {
+                                    this.open = !this.open
+                                    if (this.open) {
+                                        const rect = $el.getBoundingClientRect()
+                                        this.left = rect.left
+                                        this.top = rect.bottom + 6
+                                    }
+                                }
+                            }" @click.outside="open = false" class="relative">
+                                <button @click="toggle($el)"
+                                    title="Buka menu aksi"
+                                    aria-haspopup="true"
+                                    aria-expanded="false"
+                                    class="bg-[#ff8000] text-white px-3 py-2 rounded-md text-xs font-medium flex items-center gap-1">
+                                    Aksi <i class="mgc_down_line text-base transition-transform" :class="{ 'rotate-180': open }"></i>
+                                </button>
+
+                                <template x-if="open">
+                                    <div
+                                        class="fixed z-[9999] w-44 bg-white border border-gray-200 rounded-md shadow-lg dark:bg-gray-900 dark:border-gray-700"
+                                        :style="`top: ${top}px; left: ${left}px`"
+                                        x-transition:enter="transition ease-out duration-100"
+                                        x-transition:enter-start="opacity-0 scale-95"
+                                        x-transition:enter-end="opacity-100 scale-100"
+                                        x-transition:leave="transition ease-in duration-75"
+                                        x-transition:leave-start="opacity-100 scale-100"
+                                        x-transition:leave-end="opacity-0 scale-95"
+                                    >
+                                        <button type="button"
+                                            title="Tes koneksi router"
+                                            class="flex items-center gap-2 w-full px-4 py-2 text-xs text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 js-test-conn-btn"
+                                            data-url="{{ route('mikrotik.test', $router->id) }}">
+                                            <i class="mgc_transfer_line text-base"></i> Tes Koneksi
+                                        </button>
+                                        <a href="{{ route('mikrotik.edit', $router->id) }}"
+                                           title="Edit router"
+                                           class="flex items-center gap-2 w-full px-4 py-2 text-xs text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                                            <i class="mgc_edit_line text-base"></i> Edit
+                                        </a>
+                                        <button type="button"
+                                            title="Hapus router"
+                                            class="flex items-center gap-2 w-full px-4 py-2 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-gray-700 js-delete-btn"
+                                            data-form-id="delete-form-{{ $router->id }}">
+                                            <i class="mgc_delete_line text-base"></i> Hapus
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            <form id="delete-form-{{ $router->id }}" method="POST" action="{{ route('mikrotik.destroy', $router->id) }}" class="hidden">
+                                @csrf @method('DELETE')
+                            </form>
+                        </td>
+                        <td class="px-6 py-4 font-medium">{{ $router->router_name }}</td>
+                        <td class="px-6 py-4">{{ $router->ip_address }}:{{ $router->port_api }}</td>
+                        <td class="px-6 py-4">{{ $router->cluster ?? '-' }}</td>
+                        <td class="px-6 py-4 text-center min-w-[120px]">
+                            @if($router->status_koneksi)
+                                <span class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-400">
+                                    <i class="mgc_wifi_line text-sm"></i> Terhubung
+                                </span>
+                            @else
+                                <span class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400">
+                                    <i class="mgc_nowifi_line text-sm"></i> Gagal
+                                </span>
+                            @endif
+                        </td>
+                    </tr>
                     @empty
-                        <tr>
-                            <td colspan="6" class="text-center text-slate-500 py-8">
-                                <div class="flex flex-col items-center">
-                                    <i class="mgc_server_line text-4xl text-slate-400 mb-2"></i>
-                                    <h4 class="text-lg font-medium">Belum ada data router.</h4>
-                                    <p class="text-sm">Silakan tambahkan router baru untuk memulai.</p>
-                                </div>
-                            </td>
-                        </tr>
+                    <tr>
+                        <td colspan="5" class="text-center py-10 text-slate-500">
+                            <div class="flex flex-col items-center">
+                                <i class="mgc_server_line text-4xl mb-3 text-slate-400"></i>
+                                <p class="text-lg font-semibold">Belum ada router</p>
+                                <p class="text-sm">Klik tombol "Tambah Router" untuk menambahkan router baru.</p>
+                            </div>
+                        </td>
+                    </tr>
                     @endforelse
                 </tbody>
             </table>
@@ -103,29 +135,39 @@
 @endsection
 
 @push('scripts')
-<script src="/libs/sweetalert2/sweetalert2.min.js"></script>
-
+<script src="{{ asset('libs/sweetalert2/sweetalert2.min.js') }}"></script>
 <script>
-function confirmDelete(formId) {
-    Swal.fire({
-        title: 'Anda yakin?',
-        text: "Data router ini akan dihapus secara permanen.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#ff8000',
-        cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Ya, hapus!',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            document.getElementById(formId).submit();
-        }
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.js-test-conn-btn').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const url = this.dataset.url;
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: data.status ? 'success' : 'error',
+                        title: data.message,
+                        showConfirmButton: false,
+                        timer: 2500,
+                        timerProgressBar: true,
+                    });
+                })
+                .catch(() => {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: 'Gagal menghubungi router.',
+                        showConfirmButton: false,
+                        timer: 2500,
+                        timerProgressBar: true,
+                    });
+                });
+        });
     });
-}
+});
 </script>
-@endpush
-
-@push('styles')
-<link href="/libs/sweetalert2/sweetalert2.min.css" rel="stylesheet" type="text/css" />
 @endpush
 

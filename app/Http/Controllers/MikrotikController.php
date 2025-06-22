@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use App\Models\Mikrotik;
 use App\Models\VpnAccount;
 use RouterOS\Client;
-use RouterOS\Query;
 use Exception;
 
 class MikrotikController extends Controller
@@ -18,24 +17,14 @@ class MikrotikController extends Controller
     {
         $mikrotiks = Mikrotik::orderBy('cluster')->get()->map(function ($router) {
             try {
-                // Inisialisasi klien RouterOS
-                $client = new Client([
-                    'host'    => $router->ip_address,
-                    'user'    => $router->username,
-                    'pass'    => $router->password,
-                    'port'    => (int)$router->port_api ?? 8728, // Gunakan port_api dari database
-                    'timeout' => 2, // Timeout koneksi dalam detik
-                ]);
-                $client->connect();
+                $client = $this->connectToRouter($router);
                 $router->status_koneksi = true;
             } catch (Exception $e) {
-                // Jika koneksi gagal, set status ke false
                 $router->status_koneksi = false;
             }
             return $router;
         });
 
-        // Ganti nama variabel agar konsisten dengan view
         $routers = $mikrotiks;
 
         return view('pages.mikrotik.index', compact('routers'));
@@ -118,12 +107,44 @@ class MikrotikController extends Controller
     public function destroy($id)
     {
         $router = Mikrotik::findOrFail($id);
-
         VpnAccount::where('mikrotik_id', $router->id)->update(['mikrotik_id' => null]);
-
         $router->delete();
-
         return redirect()->route('mikrotik.index')->with('success', 'Router berhasil dihapus.');
+    }
+
+    /**
+     * Tes koneksi ke Mikrotik dan kembalikan response JSON.
+     */
+    public function testKoneksi($id)
+    {
+        try {
+            $router = Mikrotik::findOrFail($id);
+            $client = $this->connectToRouter($router);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Router berhasil terhubung ke API Mikrotik.',
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal terhubung: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Fungsi privat untuk membuat koneksi ke Mikrotik.
+     */
+    private function connectToRouter($router)
+    {
+        return new Client([
+            'host'    => $router->ip_address,
+            'user'    => $router->username,
+            'pass'    => $router->password,
+            'port'    => (int)($router->port_api ?? 8728),
+            'timeout' => 3,
+        ]);
     }
 }
 

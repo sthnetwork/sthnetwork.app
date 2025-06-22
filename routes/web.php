@@ -15,8 +15,8 @@ require __DIR__ . '/auth.php';
 */
 Route::middleware('auth')->group(function () {
 
-    // Halaman utama dashboard
-    Route::get('/', [RoutingController::class, 'root'])->name('dashboard');
+    // ✅ Halaman utama dashboard (fix bug)
+    Route::get('/', [RoutingController::class, 'index'])->name('dashboard');
 
     /*
     |--------------------------------------------------------------------------
@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function () {
     | Modul Router Mikrotik
     |--------------------------------------------------------------------------
     */
+    Route::get('/mikrotik/test-koneksi/{id}', [MikrotikController::class, 'testKoneksi'])->name('mikrotik.test');
     Route::resource('mikrotik', MikrotikController::class);
 
     /*
@@ -39,7 +40,6 @@ Route::middleware('auth')->group(function () {
     */
     Route::get('vpn/logs', [VpnAccountController::class, 'logs'])->name('vpn.logs');
     Route::resource('vpn', VpnAccountController::class);
-    
 
     /*
     |--------------------------------------------------------------------------
@@ -48,6 +48,6 @@ Route::middleware('auth')->group(function () {
     */
     Route::get('{first}/{second}/{third}', [RoutingController::class, 'thirdLevel'])->name('third');
     Route::get('{first}/{second}', [RoutingController::class, 'secondLevel'])->name('second');
-    Route::get('{any}', [RoutingController::class, 'root'])->name('any');
+    Route::get('{first}', [RoutingController::class, 'root'])->name('any');
 });
 

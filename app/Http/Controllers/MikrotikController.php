@@ -6,33 +6,28 @@ use Illuminate\Http\Request;
 use App\Models\Mikrotik;
 use App\Models\VpnAccount;
 use RouterOS\Client;
-use Exception;
+use RouterOS\Query;
+use Throwable;
 
 class MikrotikController extends Controller
 {
-    /**
-     * Tampilkan semua router Mikrotik dengan status koneksi.
-     */
     public function index()
     {
-        $mikrotiks = Mikrotik::orderBy('cluster')->get()->map(function ($router) {
+        $routers = Mikrotik::orderBy('cluster')->paginate(10); // gunakan paginate()
+
+        // tambahkan status koneksi manual
+        foreach ($routers as $router) {
             try {
-                $client = $this->connectToRouter($router);
+                $this->connectToRouter($router);
                 $router->status_koneksi = true;
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 $router->status_koneksi = false;
             }
-            return $router;
-        });
-
-        $routers = $mikrotiks;
+        }
 
         return view('pages.mikrotik.index', compact('routers'));
     }
 
-    /**
-     * Form tambah router.
-     */
     public function create()
     {
         $availableVpnIps = VpnAccount::whereNull('mikrotik_id')
@@ -43,9 +38,6 @@ class MikrotikController extends Controller
         return view('pages.mikrotik.create', compact('availableVpnIps'));
     }
 
-    /**
-     * Simpan router baru.
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -66,18 +58,12 @@ class MikrotikController extends Controller
         return redirect()->route('mikrotik.index')->with('success', 'Router berhasil ditambahkan.');
     }
 
-    /**
-     * Form edit router.
-     */
     public function edit($id)
     {
         $mikrotik = Mikrotik::findOrFail($id);
         return view('pages.mikrotik.edit', compact('mikrotik'));
     }
 
-    /**
-     * Update router.
-     */
     public function update(Request $request, $id)
     {
         $mikrotik = Mikrotik::findOrFail($id);
@@ -101,9 +87,6 @@ class MikrotikController extends Controller
         return redirect()->route('mikrotik.index')->with('success', 'Router berhasil diperbarui.');
     }
 
-    /**
-     * Hapus router.
-     */
     public function destroy($id)
     {
         $router = Mikrotik::findOrFail($id);
@@ -112,37 +95,42 @@ class MikrotikController extends Controller
         return redirect()->route('mikrotik.index')->with('success', 'Router berhasil dihapus.');
     }
 
-    /**
-     * Tes koneksi ke Mikrotik dan kembalikan response JSON.
-     */
     public function testKoneksi($id)
     {
         try {
             $router = Mikrotik::findOrFail($id);
             $client = $this->connectToRouter($router);
+            $client->connect();
+
+            logger()->info('Berhasil terhubung ke router ' . $router->ip_address);
+
+            // Tes ringan ke router
+            $query = new Query('/system/resource/print');
+            $response = $client->query($query)->read();
+
+            logger()->info('Hasil query:', $response);
 
             return response()->json([
-                'status' => 'success',
+                'status' => true,
                 'message' => 'Router berhasil terhubung ke API Mikrotik.',
             ]);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
+            logger()->error('Gagal koneksi Mikrotik', ['error' => $e->getMessage()]);
+
             return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal terhubung: ' . $e->getMessage(),
+                'status' => false,
+                'message' => 'Gagal koneksi: ' . $e->getMessage(),
             ], 500);
         }
     }
 
-    /**
-     * Fungsi privat untuk membuat koneksi ke Mikrotik.
-     */
     private function connectToRouter($router)
     {
         return new Client([
             'host'    => $router->ip_address,
             'user'    => $router->username,
             'pass'    => $router->password,
-            'port'    => (int)($router->port_api ?? 8728),
+            'port'    => $router->port_api ?: env('VPN_PORT', 8728),
             'timeout' => 3,
         ]);
     }

@@ -1,6 +1,5 @@
 <?php $__env->startSection('content'); ?>
 <div class="space-y-6">
-
     
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -12,7 +11,7 @@
                 Kelola router Mikrotik per area (cluster) yang terhubung ke sistem.
             </p>
         </div>
-        <a href="<?php echo e(route('mikrotiks.create')); ?>"
+        <a href="<?php echo e(route('mikrotik.create')); ?>"
            class="btn bg-[#ff8000] hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-md shadow-md hover:shadow-lg transition-all">
             <i class="mgc_add_line mr-1"></i> Tambah Router
         </a>
@@ -68,13 +67,14 @@
                             </td>
                             <td class="px-4 py-2 text-center rounded-r-lg">
                                 <div class="flex justify-center gap-2">
-                                    <a href="<?php echo e(route('mikrotiks.edit', $router->id)); ?>" class="btn btn-sm bg-primary/20 text-primary hover:bg-primary hover:text-white">
+                                    <a href="<?php echo e(route('mikrotik.edit', $router->id)); ?>" class="btn btn-sm bg-primary/20 text-primary hover:bg-primary hover:text-white">
                                         <i class="mgc_edit_line"></i>
                                     </a>
-                                    <button class="btn btn-sm bg-danger/20 text-danger hover:bg-danger hover:text-white" onclick="confirmDelete('delete-form-<?php echo e($router->id); ?>')">
+                                    <button type="button" class="btn btn-sm bg-danger/20 text-danger hover:bg-danger hover:text-white"
+                                        onclick="confirmDelete('delete-form-<?php echo e($router->id); ?>')">
                                         <i class="mgc_delete_line"></i>
                                     </button>
-                                    <form id="delete-form-<?php echo e($router->id); ?>" action="<?php echo e(route('mikrotiks.destroy', $router->id)); ?>" method="POST" class="hidden">
+                                    <form id="delete-form-<?php echo e($router->id); ?>" action="<?php echo e(route('mikrotik.destroy', $router->id)); ?>" method="POST" class="hidden">
                                         <?php echo csrf_field(); ?>
                                         <?php echo method_field('DELETE'); ?>
                                     </form>
@@ -100,31 +100,29 @@
 <?php $__env->stopSection(); ?>
 
 <?php $__env->startPush('scripts'); ?>
-
 <script src="/libs/sweetalert2/sweetalert2.min.js"></script>
 
 <script>
-    function confirmDelete(formId) {
-        Swal.fire({
-            title: 'Anda yakin?',
-            text: "Data router ini akan dihapus secara permanen.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#ff8000',
-            cancelButtonColor: '#6b7280',
-            confirmButtonText: 'Ya, hapus!',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById(formId).submit();
-            }
-        })
-    }
+function confirmDelete(formId) {
+    Swal.fire({
+        title: 'Anda yakin?',
+        text: "Data router ini akan dihapus secara permanen.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff8000',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Ya, hapus!',
+        cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById(formId).submit();
+        }
+    });
+}
 </script>
 <?php $__env->stopPush(); ?>
 
 <?php $__env->startPush('styles'); ?>
-
 <link href="/libs/sweetalert2/sweetalert2.min.css" rel="stylesheet" type="text/css" />
 <?php $__env->stopPush(); ?>
 
